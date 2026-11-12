@@ -1,0 +1,14 @@
+pandas
+numpy
+pyarrow
+scipy
+matplotlib
+requests
+supabase
+streamlit==1.66.1
+altair
+modal
+python-dotenv
+pymupdf
+implicit
+tabulate

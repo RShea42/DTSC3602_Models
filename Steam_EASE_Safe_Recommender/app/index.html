@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Next Game Finder</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16191d;--muted:#5d6670;--line:#e2e5ea;--accent:#2563eb;--accent-ink:#fff;--chip:#eef2ff;--chip-ink:#3730a3;--new:#ecfdf5;--new-ink:#047857;--err:#b91c1c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1216;--card:#181c22;--ink:#e8ebef;--muted:#9aa4af;--line:#2a3038;--accent:#60a5fa;--accent-ink:#0b1220;--chip:#1e2540;--chip-ink:#c7d2fe;--new:#0f2a22;--new-ink:#6ee7b7;--err:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:28px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+form{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1 1 260px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+input.price{flex:0 0 130px}
+.opt{display:block;margin:8px 0;font-size:14px;opacity:.8}
+button{padding:11px 18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.hint{color:var(--muted);font-size:13px;margin-top:8px}
+.err{color:var(--err);margin-top:14px}
+.player{display:flex;align-items:center;gap:12px;margin:28px 0 4px}
+.player img{width:48px;height:48px;border-radius:8px}
+.player .meta{color:var(--muted);font-size:13px}
+h2{font-size:19px;margin:28px 0 4px}
+.rowsub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.card img{width:100%;aspect-ratio:460/215;object-fit:cover;background:var(--line);display:block}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.title{font-weight:600}
+.facts{color:var(--muted);font-size:13px}
+.why{font-size:13px}
+.tags{display:flex;flex-wrap:wrap;gap:4px}
+.tag{background:var(--chip);color:var(--chip-ink);border-radius:999px;padding:1px 8px;font-size:12px}
+.tag.new{background:var(--new);color:var(--new-ink);font-weight:600}
+.card a{margin-top:auto;color:var(--accent);font-size:13px;font-weight:600;text-decoration:none}
+.fav{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.results{list-style:none;padding:0;margin:6px 0}
+.results li{padding:6px 8px;border-radius:6px;cursor:pointer}
+.results li:hover{background:var(--chip)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips .tag{cursor:pointer}
+.loading{color:var(--muted);margin-top:14px}
+.signin{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+[hidden]{display:none!important}
+.steam{display:inline-block;line-height:0;border-radius:3px}
+.steam img{display:block;width:180px;height:35px}
+.steam:hover img{filter:brightness(1.15)}
+.steam:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.signin .hint{margin:0;max-width:52ch}
+.signedin{margin:0 0 18px;color:var(--muted)}
+.signedin a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Next Game Finder</h1>
+  <p class="sub">Get games you're likely to enjoy, based on how you actually play.</p>
+  <div class="signin" id="signin">
+    <a class="steam" href="/login"><img src="https://community.fastly.steamstatic.com/public/images/signinthroughsteam/sits_01.png" alt="Sign in through Steam" width="180" height="35"></a>
+    <span class="hint">You sign in on Steam's own page. We never see your password, and nothing is saved. Your Steam game details need to be public.</span>
+  </div>
+  <div class="signedin" id="signedin" hidden><span id="who"></span> <a href="/logout">Sign out</a></div>
+  <label class="opt"><input type="checkbox" id="adult"> Show adult games (sexually explicit; off by default)</label>
+  <div id="msg"></div>
+  <div id="out"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let favs = new Map(), last = null;
+const withOpts = url => url + (url.includes("?") ? "&" : "?") + ($("#adult").checked ? "adult=1" : "adult=0");
+function card(c){
+  const pr = (c.price_text || "") + (c.discount ? ` (${c.discount}% off)` : "");
+  const facts = [pr, c.rating != null ? c.rating + "% positive" : "", c.reviews ? c.reviews.toLocaleString() + " reviews" : ""].filter(Boolean).join(" · ");
+  const why = c.because.length ? "Because you enjoyed " + c.because.map(esc).join(" and ") : "";
+  return `<div class="card">${c.image ? `<img src="${esc(c.image)}" alt="" loading="lazy">` : `<img alt="">`}
+    <div class="body"><div class="title">${esc(c.title)}</div><div class="facts">${esc(facts)}</div>
+    <div class="tags">${c.new_tag ? `<span class="tag new">New for you: ${esc(c.new_tag)}</span>` : ""}${c.tags.filter(t => t !== c.new_tag).slice(0,3).map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+    <div class="why">${why}</div><a href="${esc(c.store_url)}" target="_blank" rel="noopener">View on Steam →</a></div></div>`;
+}
+function render(r){
+  const p = r.player ? `<div class="player">${r.player.avatar ? `<img src="${esc(r.player.avatar)}" alt="">` : ""}<div><div class="title">${esc(r.player.name)}</div>
+    <div class="meta">${r.n_owned} games owned · taste built from ${r.n_used} · you lean ${r.top_tags.slice(0,3).map(esc).join(", ")}</div></div></div>` : "";
+  $("#out").innerHTML = p + `<h2>For you</h2><p class="rowsub">Closest to what you already love.</p><div class="grid">${r.for_you.map(card).join("")}</div>
+    <h2>Try something new</h2><p class="rowsub">Players with your taste enjoyed these, but they're outside your usual tags.</p><div class="grid">${r.try_new.map(card).join("")}</div>`;
+}
+async function call(url){
+  last = url;
+  $("#msg").innerHTML = `<div class="loading">Reading your library and finding games…</div>`; $("#out").innerHTML = "";
+  try{
+    const res = await fetch(withOpts(url)), j = await res.json();
+    if (!res.ok){ $("#msg").innerHTML = `<div class="err">${esc(j.error)}</div>`; favPicker(); return; }
+    $("#msg").innerHTML = ""; render(j);
+  }catch(e){ $("#msg").innerHTML = `<div class="err">Couldn't reach the server. Is app/server.py running?</div>`; }
+}
+function favPicker(){
+  $("#out").innerHTML = `<div class="fav"><div class="title">Or pick 3–10 games you love</div>
+    <input id="fs" placeholder="Search a game title" autocomplete="off"><ul class="results" id="fr"></ul>
+    <div class="chips" id="fc"></div><button id="fgo" type="button">Recommend from these</button></div>`;
+  let t; $("#fs").oninput = e => { clearTimeout(t); t = setTimeout$("#adult").onchange = () => { if (last) call(last); };   // reload the current picks with the new setting
+(async () => {
+    const r = await (await fetch("/api/search?q=" + encodeURIComponent(e.target.value))).json();
+    $("#fr").innerHTML = r.map(g => `<li data-id="${g.app_id}">${esc(g.title)}</li>`).join(""); }, 200); };
+  $("#fr").onclick = e => { const li = e.target.closest("li"); if (!li) return; favs.set(+li.dataset.id, li.textContent); chips(); };
+  $("#fgo").onclick = () => favs.size ? call("/api/favorites?ids=" + [...favs.keys()].join(",")) : null;
+  chips();
+}
+function chips(){ $("#fc").innerHTML = [...favs].map(([id, n]) => `<span class="tag" data-id="${id}" title="Remove">${esc(n)} ✕</span>`).join("");
+  $("#fc").onclick = e => { const c = e.target.closest(".tag"); if (c){ favs.delete(+c.dataset.id); chips(); } }; }
+$("#adult").onchange = () => { if (last) call(last); };   // reload the current picks with the new setting
+(async () => {                        // signed in through Steam? load their picks straight away
+  if (location.hash === "#signin-failed") $("#msg").innerHTML = `<div class="err">Steam sign-in didn't complete. Try again, or paste your profile link.</div>`;
+  try{
+    last = "/api/me";
+    const res = await fetch(withOpts("/api/me"));
+    if (res.status === 401) return;
+    $("#signin").hidden = true; $("#signedin").hidden = false;
+    const j = await res.json();
+    if (!res.ok){ $("#who").textContent = "Signed in."; $("#msg").innerHTML = `<div class="err">${esc(j.error)}</div>`; favPicker(); return; }
+    $("#who").textContent = "Signed in as " + j.player.name + ".";
+    render(j);
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
