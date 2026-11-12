@@ -9,9 +9,12 @@ went on to enjoy**, while steering away from games the player is likely to quit.
    item-to-item weight matrix, in closed form, from which games players played together. A player's scores are the
    sum of the rows for the games they played. One setting: regularization λ = 100.
 2. **Safe re-rank:** EASE's top 50 are re-scored as
-   `z(EASE score) − 0.5 × like_quit − 1 × short_game − 10 × negative_reviews`. These are the team's three soft-fail
-   flags: like the player's under-2-hour games, median playtime ≤ 2 h, Mostly Negative or worse.
-   Flagged games move down but are not removed. The weights were picked on the 75/25 holdout by a rule fixed
+   `z(EASE score) − 0.5 × like_quit − 1 × short_game − 10 × negative_reviews`, using the team's three soft-fail flags:
+   - `like_quit`: the game's tags are closer to games the player quit (under 2 h) than to games they kept playing
+   - `short_game`: the game's median playtime is 2 h or less
+   - `negative_reviews`: Steam rating of Mostly Negative or worse
+
+   `z(EASE score)` is the score standardized within the player's top 50. Flagged games move down but are not removed. The weights were picked on the 75/25 holdout by a rule fixed
    in advance: the fewest flags while keeping at least 98% of EASE's accuracy (`team_eval/rerank_grid.md`).
 
 ## Head-to-head on the shared team data
@@ -19,6 +22,11 @@ went on to enjoy**, while steering away from games the player is likely to quit.
 Same 1,000 randomly chosen validation players for every model, from the shared package in Supabase
 (bucket `team-eval`). None of them are in the training data. Scored by the shared `team_eval/evaluate.py`.
 Rob's KNN was run through his own code from this repo (`Steam_KNN_Recommender`).
+MostPopular recommends the games most often enjoyed by everyone; it's the "no personalization" baseline.
+
+Each player's library is split: the model sees the visible part (80% here) and must find the hidden part.
+**NDCG@10** measures how many hidden games the player enjoyed appear in the top 10, with more credit near the top
+(0 = none found, 1 = perfect).
 
 **80/20 holdout** (75/25 and 50/50 show the same pattern; full tables in `team_eval/results_vs_rob.md`):
 
@@ -29,10 +37,11 @@ Rob's KNN was run through his own code from this repo (`Steam_KNN_Recommender`).
 | **2. Playtime match:** picks within 2x of the player's average playtime | 34% | 33% | 35% | 20% |
 | **3. Soft fails:** picks with any flag | 21% | 31% | 18% | 17% |
 | **3. Soft fails:** picks with 2 or more flags | 1.3% | 4.5% | 0.8% | 0% |
-| **3. Soft fails:** found picks the player quit under 2 h | 16% | 18% | 9% | 11% |
+| **3. Regret:** of picks the player went on to play, share they quit within 2 h | 16% | 18% | 9% | 11% |
 
-- **Test 1:** EASE-safe finds about 4x more hidden games than Rob's KNN (NDCG@10 −0.21 for KNN vs EASE,
-  95% CI −0.23 to −0.19). This holds on all three holdouts.
+- **Test 1:** EASE-safe scores about 4x Rob's KNN on NDCG@10 (0.277 vs 0.072) and finds at least one hidden game
+  for 76% of players vs 42%. The gap is far beyond chance: KNN's NDCG@10 is 0.21 below EASE's
+  (95% CI 0.19 to 0.23), and EASE-safe is within 0.006 of EASE. This holds on all three holdouts.
 - **Test 2:** about a tie with KNN. Both are far better than MostPopular.
 - **Test 3:** KNN flags slightly fewer picks (18% vs 21%) and has less regret. This is its strength, since it
   avoids games like the ones a player barely touched. EASE-safe adds the same idea through the like-quit flag and
@@ -50,7 +59,7 @@ All ~8,000 validation players, EASE-safe vs EASE (`team_eval/results.md`): NDCG@
 Rob's own test, run with his code, on the same 300 libraries for his KNN and for EASE (validation players,
 20+ played games each). Each player's 10 most-played games are hidden.
 
-| Hidden games found (of 10), average per player | Rob KNN | EASE | Popularity (Rob's baseline) |
+| Hidden games found (of 10), average per player | Rob's KNN | EASE | Popularity (Rob's baseline) |
 |---|---:|---:|---:|
 | in the top 15 | 2.13 | **4.88** | 2.01 |
 | in the top 50 | 3.53 | **6.71** | 3.23 |
@@ -74,7 +83,8 @@ tuned and compared on validation players only.
 - **New games:** EASE can only recommend games that 100+ players in its training data have played (12,934 games).
   The training libraries are mostly from 2017–2023, so new releases are missing until people play them.
   The planned fix is **Hybrid-EASE-safe**: the description-based part of Hybrid-EASE (`eval/models.py`) scores
-  new games from their store text. It ties EASE on our tests, which can't measure this benefit.
+  new games from their store text. Hybrid-EASE ties EASE on our tests, because the test players come from the same
+  years as the training data, so the tests can't show this benefit.
 - **Retraining:** EASE retrains in minutes (`model/build_ease.py`). Adding fresh Steam libraries keeps it current.
 - **Fresh catalog:** the soft-fail flags read review ratings and median playtimes. Refresh them (SteamSpy refill)
   so the flags don't go stale.
@@ -101,12 +111,14 @@ Python 3.12; `pip install -r requirements.txt`. Data paths are set near the top 
 The app also reads the shared package's `games.parquet` from `<data_clean>/team_eval/` (download it from Supabase).
 
 ```
-# first: cleaned tables + train/validation/test split from the project's cleaning step
+# first: the cleaned tables and the train/validation/test player split. These come from the main project's
+# cleaning scripts (clean/build_clean.py, clean/reserve_test.py), which are not in this folder.
 python eval/data.py               # evaluation data -> eval/cache/
 python model/build_model.py       # item stats -> model/artifacts/items.parquet
 python model/build_ease.py        # train EASE (~5 GB RAM) -> model/artifacts/ease.npz
 python model/recommend.py <steam id or profile link>   # recommendations in the terminal
 python app/server.py              # web page at http://127.0.0.1:8765
-python team_eval/run_ours.py      # top-10 lists on the shared holdouts, then team_eval/rerank.py for EASE-safe
-python team_eval/evaluate.py --data <team_eval folder> recs_ease_safe.parquet recs_yours.parquet
+python team_eval/run_ours.py      # EASE top-10 lists on the shared holdouts
+python team_eval/rerank.py        # EASE-safe lists from EASE's top 50
+python team_eval/evaluate.py --data <team_eval folder> <team_eval folder>/recs_ease_safe.parquet recs_yours.parquet
 ```
