@@ -37,9 +37,10 @@ Rob's KNN was run through his own code from this repo (`Steam_KNN_Recommender`).
 - **Test 3:** KNN flags slightly fewer picks (18% vs 21%) and has less regret. This is its strength, since it
   avoids games like the ones a player barely touched. EASE-safe adds the same idea through the like-quit flag and
   closes most of the gap, while still finding about 4x more games.
-- **Reliability:** KNN returned no list for 2 of 3,000 runs (1 library with no games in its catalog, 1 crash
-  inside `recommend.py`). These were scored as zero. It also recommended a few games outside the shared catalog
-  (0.5% of picks), which can't count as hits.
+- **Edge cases:** KNN returned no list for 2 of 3,000 runs. Both were tiny libraries at 50/50 that the scoring
+  skips (fewer than 5 visible games), so they don't affect any number above. One was a library with no played game
+  in its catalog. The other had no played games at all, which raises a pandas error in `recommend.py` instead of a
+  clear message. KNN also recommended a few games outside the shared catalog (0.5% of picks), which can't count as hits.
 
 All ~8,000 validation players, EASE-safe vs EASE (`team_eval/results.md`): NDCG@10 0.270 vs 0.276 at 80/20,
 0.274 vs 0.280 at 75/25, 0.313 vs 0.316 at 50/50. Picks with any flag drop from 32% to 21%.
