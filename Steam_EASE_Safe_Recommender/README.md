@@ -108,8 +108,10 @@ the datasets, and secrets.
 
 Python 3.12; `pip install -r requirements.txt`.
 
-**Just running the app (no retraining):** ask Juan for `EASE_safe_data.zip` (the trained weights and the two
-catalogs; too big for GitHub). Unzip it anywhere and point the app at it:
+**Just running the app (no retraining):** the trained weights and the two catalogs are too big for GitHub, so they
+are in Supabase Storage: bucket `team-eval`, folder `ease_safe/` (plus `games.parquet` at the bucket root).
+The model is split into 8 parts (50 MB file limit); `ease_safe/README.txt` has the command to rejoin them, a
+checksum, and where each file goes. Then point the app at the folders:
 
 ```
 $env:STEAMREC_ARTIFACTS = "<unzip folder>/model/artifacts"
