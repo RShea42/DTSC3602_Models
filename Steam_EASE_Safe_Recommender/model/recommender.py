@@ -21,8 +21,10 @@ import pandas as pd
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
-A = ROOT / "model" / "artifacts"
-D = Path("C:/Users/juant/data_clean")
+import os  # noqa: E402
+# Data folders; set STEAMREC_ARTIFACTS / STEAMREC_DATA to use your own copies (defaults: Juan's machine)
+A = Path(os.environ.get("STEAMREC_ARTIFACTS", ROOT / "model" / "artifacts"))
+D = Path(os.environ.get("STEAMREC_DATA", "C:/Users/juant/data_clean"))
 STEAM = "https://api.steampowered.com"
 sys.path.insert(0, str(ROOT / "team_eval"))
 from evaluate import NEG, tag_matrix  # noqa: E402   the team's flag definitions, shared with the scoring

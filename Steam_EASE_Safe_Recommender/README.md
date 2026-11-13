@@ -106,9 +106,22 @@ the datasets, and secrets.
 
 ## Running it
 
-Python 3.12; `pip install -r requirements.txt`. Data paths are set near the top of `eval/data.py` and
-`model/recommender.py` (currently `C:/Users/juant/...`); change them to yours.
-The app also reads the shared package's `games.parquet` from `<data_clean>/team_eval/` (download it from Supabase).
+Python 3.12; `pip install -r requirements.txt`.
+
+**Just running the app (no retraining):** ask Juan for `EASE_safe_data.zip` (the trained weights and the two
+catalogs; too big for GitHub). Unzip it anywhere and point the app at it:
+
+```
+$env:STEAMREC_ARTIFACTS = "<unzip folder>/model/artifacts"
+$env:STEAMREC_DATA      = "<unzip folder>/data_clean"
+python model/recommend.py <steam id or profile link>
+```
+
+The app also needs a `.env` file in this folder with `STEAM_API_KEY=<your own key>`
+(https://steamcommunity.com/dev/apikey).
+
+**Rebuilding from scratch:** data paths for the evaluation are set near the top of `eval/data.py`
+(currently `C:/Users/juant/...`); change them to yours.
 
 ```
 # first: the cleaned tables and the train/validation/test player split. These come from the main project's
