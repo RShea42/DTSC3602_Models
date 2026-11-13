@@ -82,9 +82,10 @@ tuned and compared on validation players only.
 
 - **New games:** EASE can only recommend games that 100+ players in its training data have played (12,934 games).
   The training libraries are mostly from 2017–2023, so new releases are missing until people play them.
-  The planned fix is **Hybrid-EASE-safe**: the description-based part of Hybrid-EASE (`eval/models.py`) scores
-  new games from their store text. Hybrid-EASE ties EASE on our tests, because the test players come from the same
-  years as the training data, so the tests can't show this benefit.
+  Hybrid-EASE (`eval/models.py`, 75% EASE + 25% match on store descriptions) does **not** fix this as tuned: only
+  0.14% of its picks on the shared holdouts (769 of 566,000) were games EASE can't score, because the description
+  match alone can't outscore EASE's top picks. The planned fix is to **reserve 1–2 spots per list** for the
+  best-matching newer games, ranked by the description match. That needs its own test before it ships.
 - **Retraining:** EASE retrains in minutes (`model/build_ease.py`). Adding fresh Steam libraries keeps it current.
 - **Fresh catalog:** the soft-fail flags read review ratings and median playtimes. Refresh them (SteamSpy refill)
   so the flags don't go stale.
