@@ -7,7 +7,9 @@ evaluate.py, so the comparison is like for like.
 Rob's input per player: visible played games with minutes, plus owned unplayed games with 0 minutes (so he never
 recommends them); hidden games are left out. Recency is off (the package has no last-played dates). Top 10 of his
 final ranking (one game per family, as his app shows).
-  PYTHONUTF8=1 C:/Users/juant/.venvs/steamrec-ml/Scripts/python team_eval/rob_on_team_eval.py [N] [workers]
+  PYTHONUTF8=1 C:/Users/juant/.venvs/steamrec-ml/Scripts/python team_eval/rob_on_team_eval.py [N] [workers] [default|tuned]
+"tuned" = the slider settings Rob's README reports gave his best results in the live app
+(quality_weight 0, dislike_weight 1.5, min_reviews 10); it writes to its own folder and results file.
 """
 import os
 import subprocess
@@ -23,7 +25,10 @@ import pandas as pd
 ROB = Path("C:/Users/juant/team 3000/DTSC3602_Models/Steam_KNN_Recommender")
 HERE = Path(__file__).resolve().parent
 DATA = Path("C:/Users/juant/data_clean/team_eval")
-OUT = Path("C:/Users/juant/data_clean/team_eval_rob")
+VARIANT = sys.argv[3] if len(sys.argv) > 3 else "default"
+TUNED = {"quality_weight": 0.0, "dislike_weight": 1.5, "min_reviews": 10}
+OUT = Path("C:/Users/juant/data_clean/team_eval_rob" + ("" if VARIANT == "default" else f"_{VARIANT}"))
+RESULTS = "results_vs_rob.md" if VARIANT == "default" else f"results_vs_rob_{VARIANT}.md"
 HOLD = ["80_20", "75_25", "50_50"]
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
 W = int(sys.argv[2]) if len(sys.argv) > 2 else 4
@@ -31,13 +36,15 @@ W = int(sys.argv[2]) if len(sys.argv) > 2 else 4
 _f = _cfg = None
 
 
-def _init():
+def _init(variant):
     global _f, _cfg
     sys.path.insert(0, str(ROB))
     from features import load_features
     from recommend import RecConfig
     _f = load_features()
     _cfg = replace(RecConfig(), recency_half_life_days=0, recent_2weeks_boost=0)
+    if variant == "tuned":
+        _cfg = replace(_cfg, **TUNED)
 
 
 def _one(job):
@@ -86,7 +93,7 @@ def main():
     todo = [j for j in jobs if (j[0], j[1]) not in done]
     t0 = time.time()
     with open(prog, "a", encoding="utf-8") as fp, open(donef, "a", encoding="utf-8") as fd, \
-            Pool(W, initializer=_init) as p:
+            Pool(W, initializer=_init, initargs=(VARIANT,)) as p:
         for i, r in enumerate(p.imap_unordered(_one, todo, chunksize=2)):
             fp.write("".join(f"{a},{b},{c},{e}\n" for a, b, c, e in r))
             fp.flush()
@@ -119,8 +126,8 @@ def main():
         r[r.player_id.isin(players)].to_parquet(OUT / f"recs_{m}.parquet")
     files = [str(OUT / f"recs_{m}.parquet") for m in ["ease", "rob_knn", "ease_safe", "mostpopular"]]
     subprocess.run([sys.executable, str(HERE / "evaluate.py"), "--data", str(OUT), *files,
-                    "--out", str(HERE / "results_vs_rob.md")], check=True)
-    print(f"done in {(time.time() - t0) / 60:.0f} min -> team_eval/results_vs_rob.md")
+                    "--out", str(HERE / RESULTS)], check=True)
+    print(f"done in {(time.time() - t0) / 60:.0f} min -> team_eval/{RESULTS}")
 
 
 if __name__ == "__main__":
