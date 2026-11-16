@@ -123,6 +123,23 @@ python model/recommend.py <steam id or profile link>
 The app also needs a `.env` file in this folder with `STEAM_API_KEY=<your own key>`
 (https://steamcommunity.com/dev/apikey).
 
+**Re-running the D3 comparison** (all four models on the shared validation players). Needs the shared package
+from Supabase Storage (bucket `team-eval`) in one folder, a clone of this repo (for Rob's KNN in
+`Steam_KNN_Recommender/`) and a clone of [zcrawfo6/Steamapp](https://github.com/zcrawfo6/Steamapp) on branch
+`peyton-dev` (for TasteForge). Folder paths are constants at the top of each script; set them to yours.
+
+```
+python team_eval/evaluate.py --data <team_eval folder> <team_eval folder>/recs_ease_safe.parquet <team_eval folder>/recs_mostpopular.parquet
+python team_eval/rob_on_team_eval.py 1000 2       # KNN on 1,000 sampled players (~30 min; saves progress, rerun resumes)
+python team_eval/tasteforge_on_team_eval.py       # TasteForge + the all-model table -> results_all_models.md
+python team_eval/litmus_compare.py 300            # Rob's blind test: KNN and EASE on 300 libraries
+python team_eval/litmus_more.py                   # same 300 libraries: EASE-safe and TasteForge -> litmus_all_models.md
+python team_eval/error_analysis.py                # NDCG@10 by library size, source, popular vs niche -> error_analysis.md
+```
+
+The saved outputs (`results_all_models.md`, `litmus_all_models.md`, `error_analysis.md`) are committed, so the
+numbers in the D3 note can be checked without re-running.
+
 **Rebuilding from scratch:** data paths for the evaluation are set near the top of `eval/data.py`
 (currently `C:/Users/juant/...`); change them to yours.
 
