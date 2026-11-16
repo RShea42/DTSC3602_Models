@@ -19,56 +19,53 @@ went on to enjoy**, while steering away from games the player is likely to quit.
 
 ## Head-to-head on the shared team data
 
-Same 1,000 randomly chosen validation players for every model, from the shared package in Supabase
-(bucket `team-eval`). None of them are in the training data. Scored by the shared `team_eval/evaluate.py`.
-Rob's KNN was run through his own code from this repo (`Steam_KNN_Recommender`).
-MostPopular recommends the games most often enjoyed by everyone; it's the "no personalization" baseline.
+The **Baseline (TasteForge)** is compared against two candidates, **EASE-safe** and Rob's **KNN**, on the same 1,000
+randomly chosen validation players from the shared package in Supabase (bucket `team-eval`). None of them are in the
+training data. Every model ran from its own team's code (KNN from `Steam_KNN_Recommender`, the Baseline from
+zcrawfo6/Steamapp branch `peyton-dev`) and every list was scored by the shared `team_eval/evaluate.py`.
+**MostPopular** (the games most often enjoyed by everyone) is a popularity reference, not a candidate.
 
 Each player's library is split: the model sees the visible part (80% here) and must find the hidden part.
 **NDCG@10** measures how many hidden games the player enjoyed appear in the top 10, with more credit near the top
 (0 = none found, 1 = perfect).
 
-**80/20 holdout** (75/25 and 50/50 show the same pattern; full tables in `team_eval/results_vs_rob.md`):
+**80/20 holdout** (75/25 and 50/50 show the same order; full tables in `team_eval/results_all_models.md`):
 
-| Team test | **EASE-safe** | EASE | Rob's KNN | MostPopular |
+| Team test | **EASE-safe** | KNN | MostPopular | Baseline (TasteForge) |
 |---|---:|---:|---:|---:|
-| **1. Hidden games found:** NDCG@10 | **0.277** | 0.282 | 0.072 | 0.035 |
-| **1. Hidden games found:** players with at least one hidden game in the top 10 | **76%** | 75% | 42% | 33% |
-| **2. Playtime match:** picks within 2x of the player's average playtime | 34% | 33% | 35% | 20% |
-| **3. Soft fails:** picks with any flag | 21% | 31% | 18% | 17% |
-| **3. Soft fails:** picks with 2 or more flags | 1.3% | 4.5% | 0.8% | 0% |
-| **3. Regret:** of picks the player went on to play, share they quit within 2 h | 16% | 18% | 9% | 11% |
+| **1. Hidden games found:** NDCG@10 | **0.277** | 0.072 | 0.035 | 0.002 |
+| **1. Hidden games found:** players with at least one hidden game in the top 10 | **76%** | 42% | 33% | 1% |
+| **2. Playtime match:** picks within 2x of the player's average playtime | 34% | **35%** | 20% | 15% |
+| **3. Soft fails:** picks with any flag | 21% | 18% | 17% | **16%** |
+| **3. Soft fails:** picks with 2 or more flags | 1.3% | 0.8% | **0%** | 0.7% |
+| **3. Regret:** of picks the player went on to play, share they quit within 2 h | 16% | **9%** | 11% | — |
 
-- **Test 1:** EASE-safe scores about 4x Rob's KNN on NDCG@10 (0.277 vs 0.072) and finds at least one hidden game
-  for 76% of players vs 42%. The gap is far beyond chance: KNN's NDCG@10 is 0.21 below EASE's
-  (95% CI 0.19 to 0.23), and EASE-safe is within 0.006 of EASE. This holds on all three holdouts.
-- **Test 2:** about a tie with KNN. Both are far better than MostPopular.
-- **Test 3:** KNN flags slightly fewer picks (18% vs 21%) and has less regret. This is its strength, since it
-  avoids games like the ones a player barely touched. EASE-safe adds the same idea through the like-quit flag and
-  closes most of the gap, while still finding about 4x more games.
-- **Edge cases:** KNN returned no list for 2 of 3,000 runs. Both were tiny libraries at 50/50 that the scoring
-  skips (fewer than 5 visible games), so they don't affect any number above. One was a library with no played game
-  in its catalog. The other had no played games at all, which raises a pandas error in `recommend.py` instead of a
-  clear message. KNN also recommended a few games outside the shared catalog (0.5% of picks), which can't count as hits.
-
-All ~8,000 validation players, EASE-safe vs EASE (`team_eval/results.md`): NDCG@10 0.270 vs 0.276 at 80/20,
-0.274 vs 0.280 at 75/25, 0.313 vs 0.316 at 50/50. Picks with any flag drop from 32% to 21%.
+- **Test 1:** EASE-safe scores about 4x KNN on NDCG@10 (0.277 vs 0.072) and finds at least one hidden game for 76%
+  of players vs 42%. KNN's NDCG@10 is 0.21 below EASE-safe's (95% bootstrap CI 0.19 to 0.23). This holds on all three
+  holdouts.
+- **Test 2:** about a tie between EASE-safe and KNN; both are far better than MostPopular and the Baseline.
+- **Test 3:** KNN flags slightly fewer picks (18% vs 21%) and has less regret. EASE-safe adds the same idea through
+  its like-quit flag and closes most of the gap, while still finding about 4x more games.
+- **Baseline (TasteForge):** in its newest version it scores the full catalog, averages tag matches and ignores
+  review counts, so its lists fill with obscure games that have about a dozen reviews. Its regret is left blank
+  because it found almost no hidden games.
+- **Edge cases:** KNN returned no list for 2 of 3,000 runs, both tiny libraries at 50/50 that the scoring skips, so
+  they don't affect any number above. KNN also recommended a few games outside the shared catalog (0.5% of picks).
 
 ## On Rob's blind test (`litmus.py`)
 
-Rob's own test, run with his code, on the same 300 libraries for his KNN and for EASE (validation players,
-20+ played games each). Each player's 10 most-played games are hidden.
+Rob's own test on the same 300 libraries for every model (validation players, 20+ played games each). Each player's
+10 most-played games are hidden. KNN ran through Rob's code with its default settings and recency off (these
+libraries have no last-played dates). Details: `team_eval/litmus_all_models.md`.
 
-| Hidden games found (of 10), average per player | Rob's KNN | EASE | Popularity (Rob's baseline) |
-|---|---:|---:|---:|
-| in the top 15 | 2.13 | **4.88** | 2.01 |
-| in the top 50 | 3.53 | **6.71** | 3.23 |
-| in the top 100 | 4.45 | **7.54** | 4.27 |
+| Hidden games found (of 10), average per player | **EASE-safe** | KNN | Popularity only | Baseline (TasteForge) |
+|---|---:|---:|---:|---:|
+| in the top 15 | **4.93** | 2.13 | 2.01 | 0.01 |
+| in the top 50 | **6.71** | 3.53 | 3.23 | 0.08 |
+| in the top 100 | **7.54** | 4.45 | 4.27 | 0.19 |
 
-This test was run on plain EASE, before the safe re-rank. The re-rank only reorders EASE's top 50 and
-changes NDCG@10 by about 2%. Caveats: recency is off because these libraries have no last-played dates;
-Rob's default settings are used; his hits count any edition in a game's family, which slightly favors KNN; most
-libraries are from 2017. Details: `team_eval/litmus_compare.md`.
+On its own test KNN barely beats the popularity-only ranking (2.13 vs 2.01 in the top 15); EASE-safe more than doubles
+it. KNN's hits count any edition in a game's family, which slightly favors it; most libraries are from 2017.
 
 ## Earlier: our own final test (EASE family)
 
