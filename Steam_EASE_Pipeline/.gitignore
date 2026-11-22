@@ -1,0 +1,20 @@
+# Big or rebuildable: the model and data never go in git (README: "Data", "Rebuild")
+serve_files/
+bucket_parts/
+*.joblib
+*.npz
+# Check outputs: keep the small reports, not the generated lists and caches
+m0_out/*
+!m0_out/*.md
+m0_refit_out/*
+!m0_refit_out/*.md
+m1_out/*
+!m1_out/*.md
+m2_out/*
+!m2_out/report.md
+!m2_out/grid_*.csv
+# Local
+.env
+*.log
+__pycache__/
+.pytest_cache/
