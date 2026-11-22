@@ -1,0 +1,7 @@
+# Local work: running the apps, tests, checks, deploying.   pip install -r requirements-dev.txt
+-r requirements.txt
+httpx==0.28.1
+modal==1.6.4
+pytest==9.2.0
+tabulate==0.10.0
+uvicorn==0.54.0
