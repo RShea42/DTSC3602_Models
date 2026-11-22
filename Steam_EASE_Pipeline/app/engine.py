@@ -19,8 +19,11 @@ import numpy as np
 import pandas as pd
 import requests
 
+from steamrec.pipeline import app_candidates
+
 STEAM = "https://api.steampowered.com"
 FILES = Path(os.environ.get("STEAMREC_FILES", Path(__file__).resolve().parent.parent / "serve_files"))
+D = Path(os.environ.get("STEAMREC_DATA", FILES))       # Juan's name for his data folder; read by Peyton's modal_api.py
 
 
 def _key():
@@ -137,6 +140,17 @@ class Recommender:
         self.search_titles = g[g.recommendable | g.index.isin(list(self.idx))].title.dropna()
         for allow in (False, True):                       # warm the filter cache so requests don't pay for it
             self._scorer(allow).allowed()
+        # ---- Juan's Recommender attributes that other code reads directly (e.g. Peyton's modal_api.py run(): per-card
+        # flags and contributions). Same names, same values as Juan's __init__, taken from the fitted pipeline.
+        safe = pipe["safe"]
+        self.T = safe.T_                                  # tag matrix over the team catalog (tag_matrix, as Juan)
+        self.tpos = {int(a): int(i) for a, i in safe.gpos_.items()}
+        self.trow = np.array([self.tpos.get(int(a), -1) for a in self.app_ids])
+        known = self.trow >= 0
+        self.flag_short = np.where(known, safe.short_[np.maximum(self.trow, 0)], False)
+        self.flag_neg = np.where(known, safe.neg_[np.maximum(self.trow, 0)], False)
+        self.candidate = app_candidates(self.app_ids, str(files / "games.parquet"), include_explicit=True)
+        self.explicit = g.explicit.reindex(self.app_ids).fillna(False).to_numpy(bool)
 
     def _scorer(self, include_explicit):
         """The pipeline's EASE step with this request's adult-content choice. A shallow copy shares the weights and
