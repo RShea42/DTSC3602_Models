@@ -16,8 +16,9 @@ recommendations as Juan's code (checked pick-for-pick); nothing in Juan's folder
 
 taste-forge.com (branch `Steamapp_Vercel` of zcrawfo6/Steamapp) already runs Juan's model through **Peyton's own
 API** (`sirjacket42--steam-ease-api…`, source `Juan_EASE/modal_api.py`, not in a repo). This project does **not**
-change that. It is a separate, auxiliary service. To make the live site run on this pipeline, see
-[Swapping the pipeline into the live API](#swapping-the-pipeline-into-the-live-api).
+change that. It is a separate, auxiliary service. The pipeline is ready to drop into Peyton's API whenever he
+chooses; it has been tested against it locally: see
+[Swapping the pipeline into the live API](#swapping-the-pipeline-into-the-live-api-for-peyton).
 
 ## The API
 
@@ -69,6 +70,7 @@ library rows ─> LibraryEncoder ─> EASEScorer ──────────�
 | `m0_*.py` … `m5_verify.py` | the checks behind every claim here; reports in `m*_out/` |
 | `paths.py` | where data and Juan's folder are (override with env vars) |
 | `split_for_bucket.py` | package the trained model for the Supabase bucket |
+| `peyton_swap/` | `compare.py`: side-by-side check of Peyton's API with Juan's recipe vs this pipeline; `report.md` |
 | `start_local.ps1` | start the demo page (:8000) and API (:8001) locally |
 
 ## Setup
@@ -128,6 +130,7 @@ deploy commands logged in to that account; the URL changes to `https://<workspac
 | M2: tuning (report only) | `lam` flat from 100 to 300 (best +0.0005, within noise); on held-out players no setting beats Juan's. Tuned re-rank only swaps short-game flags for like-quit flags. **Juan's settings kept.** (`m2_out/report.md`) |
 | M4: app engine | identical output to Juan's app on 150 libraries x (default, price limit, adult on) + favourites fallback |
 | M5: local vs Modal | 200/200 identical (`m5_out/verify_report.md`) |
+| M7: inside Peyton's API (local) | 374/374 identical with Juan's weights; 372/374 with retrained weights (2 differ in a displayed score's 4th decimal only) (`peyton_swap/report.md`) |
 
 ## Decisions
 
@@ -139,17 +142,47 @@ deploy commands logged in to that account; the URL changes to `https://<workspac
   `@modal.asgi_app(requires_proxy_auth=True)` and callers send `Modal-Key` / `Modal-Secret` headers.
 - **Cold start** (no always-on container). **No demo page deployed**; Steam sign-in stays local only.
 
-## Swapping the pipeline into the live API
+## Swapping the pipeline into the live API (for Peyton)
 
-Plan for making taste-forge.com run on this pipeline. Needs Peyton's `Juan_EASE/modal_api.py` and his OK (his account).
-1. Record what his API returns now for ~200 test libraries ("before").
-2. In a **copy** of his API (new Modal app name), replace the inline EASE scoring with `app/engine.py`'s
-   `Recommender.ordered()` (or the pipeline directly). Leave every other route alone.
-3. Same 200 libraries: copy vs original must match exactly. His recommender is an **adapted** copy of Juan's (branch
-   `Steamapp_Juan_Model/ease/recommender.py`: no Steam lookups, extra per-pick flags/contributions), so match his
-   version, not the one tested here.
-4. Point a local copy of the site (`MODAL_API_URL`) at the copy and click through every page.
-5. Peyton redeploys his real API with the change. Undo: `modal app rollback <his app>`.
+taste-forge.com's API (`modal_api.py`, Modal app `steam-ease-api`) loads Juan's unmodified
+`model/recommender.py`. `app/engine.py` has the same interface (same functions, same `Recommender` attributes,
+including the ones `run()` reads: `B`, `T`, `tpos`, `trow`, `flag_short`, `flag_neg`, `candidate`, `explicit`, and
+the module's `D`), so the swap is a change to `load_recommender` plus the image and Volume. Every route stays as is.
+
+**Tested already (local, nothing deployed):** `peyton_swap/compare.py` ran three copies of `modal_api.py`, all built
+by its own `build_api()`, on the same 374 requests across every route (recommend with price limits / adult / no-hours
+favourites, profile, player, search, games, game pages, gem, demo, error cases, missing token):
+
+| Copy | Identical to today's API |
+|---|---|
+| Pipeline with Juan's exact weights (code path) | **374 / 374** |
+| Pipeline with its own retrained weights (what the swap serves) | **372 / 374**: the 2 differ only in one card's displayed score in the 4th decimal (0.391 vs 0.3909); same games, order, prices, flags and explanations |
+| Request without the token | refused (401) by all copies |
+
+Re-run it yourself first: put your current `modal_api.py` in `peyton_swap/` (gitignored there) and run
+`python compare.py` (report: `peyton_swap/report.md`).
+
+**The change** (with `PIPE = <path to Steam_EASE_Pipeline>`):
+1. `load_recommender`: import the pipeline engine instead of Juan's module.
+   ```python
+   def load_recommender(pipeline_dir: str):
+       if pipeline_dir not in sys.path:
+           sys.path.insert(0, pipeline_dir)
+       from app import engine as R            # was: import recommender as R
+       ...                                    # rest unchanged (R._key = _key; R.get(); return R)
+   ```
+   Call it with the pipeline folder (`f"{REMOTE}/pipe"` on Modal; `str(PIPE)` in `local_app`).
+2. Image: the pinned versions (a saved pipeline needs them) and the two packages.
+   ```python
+   .uv_pip_install("fastapi[standard]", requirements=[str(PIPE / "requirements.txt")])
+   .add_local_dir(PIPE / "steamrec", f"{REMOTE}/pipe/steamrec")
+   .add_local_dir(PIPE / "app", f"{REMOTE}/pipe/app")
+   .env({..., "STEAMREC_FILES": f"{VOL}/pipeline"})     # keep STEAMREC_DATA = {VOL}/data (games_slim.csv, game details)
+   ```
+3. Volume: `python build_model.py`, then `modal volume put steam-ease-artifacts serve_files/ /pipeline`.
+4. Deploy under a **test name** first (e.g. `modal.App("steam-ease-api-test")`), point a local copy of the site's
+   `MODAL_API_URL` at it, click through every page, then deploy the real app.
+5. Undo: `modal app history steam-ease-api`, then `modal app rollback steam-ease-api <version before the swap>`.
 
 ## Known limitations
 
