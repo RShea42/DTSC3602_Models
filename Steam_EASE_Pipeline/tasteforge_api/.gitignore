@@ -1,0 +1,4 @@
+.api_token
+.env
+local_data/
+__pycache__/
