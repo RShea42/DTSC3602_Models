@@ -20,6 +20,9 @@ change that. It is a separate, auxiliary service. The pipeline is ready to drop 
 chooses; it has been tested against it locally: see
 [Swapping the pipeline into the live API](#swapping-the-pipeline-into-the-live-api-for-peyton).
 
+**Update 2026-11-23:** the swap is live. taste-forge.com's API now serves this pipeline (Modal `steam-ease-api` v5);
+its code, rebuild steps and local-vs-deployed check (200/200 identical) are in [`tasteforge_api/`](tasteforge_api/).
+
 ## The API
 
 All requests take the player's library; callers that already have it (TasteForge does, from its Steam sign-in) need no
